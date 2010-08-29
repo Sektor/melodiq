@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name[]=MelodiQ
+Comment[]=Music Recognition Tool
+Exec=melodiq
+Icon=melodiq/melodiq
+Type=Application
+Categories=Application;
