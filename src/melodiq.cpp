@@ -244,19 +244,29 @@ void MelodiqMainWindow::confirmClicked()
     }
 }
 
+QString MelodiqMainWindow::getSearchString()
+{
+    return QString(artist.trimmed() + " " + title.trimmed()).trimmed();
+}
+
 void MelodiqMainWindow::searchGoogleClicked()
 {
-    QProcess::execute("arora http://www.google.com/search?q=" + QUrl::toPercentEncoding(artist + " " + title));
+    QProcess *extproc = new QProcess(this);
+    extproc->start("arora http://www.google.com/search?q=" + QUrl::toPercentEncoding(getSearchString()));
 }
 
 void MelodiqMainWindow::searchYoutubeClicked()
 {
-    QProcess::execute("arora http://www.youtube.com/results?search_query=" + QUrl::toPercentEncoding(artist + " " + title));
+    QProcess *extproc = new QProcess(this);
+    extproc->start("arora http://www.youtube.com/results?search_query=" + QUrl::toPercentEncoding(getSearchString()));
 }
 
 void MelodiqMainWindow::tubeClicked()
 {
-    QProcess::execute("qmplayer --mpargs \"-vo fbdev -framedrop\" --youtube-dl \"ytsearch:" + artist + " " + title + "\""); //ytsearch1
+    QStringList qsl;
+    qsl << "--mpargs" << "-vo fbdev framedrop" << "--youtube-dl" << "\"ytsearch:" + getSearchString() + "\"";
+    QProcess *extproc = new QProcess(this);
+    extproc->start("qmplayer", qsl);
 }
 
 void MelodiqMainWindow::cancelClicked()

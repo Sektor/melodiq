@@ -67,6 +67,7 @@ private:
     void updateRecTime();
     void startUploading();
     QString extractVal(QString s1, QString s2);
+    QString getSearchString();
 
     void runProc(QString cmd);
     void endProc();
