@@ -68,6 +68,8 @@ private:
     void startUploading();
     QString extractVal(QString s1, QString s2);
     QString getSearchString();
+    void writeTag();
+    QString composeMplayerArgs(bool fbdev, bool framedrop, bool center, bool rotate);
 
     void runProc(QString cmd);
     void endProc();

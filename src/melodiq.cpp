@@ -1,7 +1,11 @@
 #include "melodiq.h"
 //#include <QDebug>
 #include <QFile>
+#include <QTextStream>
 #include <QMessageBox>
+#include <QDateTime>
+#include <QSettings>
+#include <QDir>
 #ifdef QTOPIA
 #include <QSoftMenuBar>
 #endif
@@ -10,6 +14,7 @@
 #define SAMPLE1_FILE QString("/tmp/melodiq-sample1.wav")
 #define SAMPLE2_FILE QString("/tmp/melodiq-sample2.wav")
 #define CAPTCHA_FILE QString("/tmp/melodiq-captcha.png")
+#define TAGS_FILE    QString("/tmp/melodiq-tags.txt")
 #ifdef QTOPIA
     #define SAMPLE_LENGTH 15
 #else
@@ -192,7 +197,7 @@ void MelodiqMainWindow::setMic(bool enabled)
 #ifdef QTOPIA
     QProcess::execute( enabled ?
             "alsactl -f /usr/share/openmoko/scenarios/voip-handset.state restore" :
-            "alsactl -f /usr/share/openmoko/scenarios/gsmhandset.state restore");
+            "alsactl -f /usr/share/openmoko/scenarios/stereoout.state restore");
 #else
     Q_UNUSED(enabled);
 #endif
@@ -246,7 +251,7 @@ void MelodiqMainWindow::confirmClicked()
 
 QString MelodiqMainWindow::getSearchString()
 {
-    return QString(artist.trimmed() + " " + title.trimmed()).trimmed();
+    return QString(artist + " " + title).trimmed();
 }
 
 void MelodiqMainWindow::searchGoogleClicked()
@@ -263,10 +268,39 @@ void MelodiqMainWindow::searchYoutubeClicked()
 
 void MelodiqMainWindow::tubeClicked()
 {
+    QSettings settings(QDir::homePath() + "/Settings/arora-browser.org/Arora.conf", QSettings::IniFormat);
+    
+    settings.beginGroup(QLatin1String("video"));
+    bool fbdev = settings.value(QLatin1String("fbdev"), true).toBool();
+    bool framedrop = settings.value(QLatin1String("framedrop"), true).toBool();
+    bool center = settings.value(QLatin1String("center"), true).toBool();
+    bool rotate = settings.value(QLatin1String("rotate"), false).toBool();
+    QString mpargs1 = composeMplayerArgs(fbdev, framedrop, center, rotate);
+    QString mpargs2 = settings.value(QLatin1String("mpargs2")).toString();
+    QString ytargs = settings.value(QLatin1String("ytargs")).toString();
+
     QStringList qsl;
-    qsl << "--mpargs" << "-vo fbdev framedrop" << "--youtube-dl" << "\"ytsearch:" + getSearchString() + "\"";
+    
+    QString mpargs = (mpargs1 + " " + mpargs2.trimmed()).trimmed();
+    if (!mpargs.isEmpty())
+        qsl << "--mpargs" << mpargs;
+
+    ytargs = ytargs.trimmed();
+    if (!ytargs.isEmpty())
+        ytargs += " ";
+    qsl << "--youtube-dl" << ytargs + "\"ytsearch:" + getSearchString() + "\"";
+
     QProcess *extproc = new QProcess(this);
     extproc->start("qmplayer", qsl);
+}
+
+QString MelodiqMainWindow::composeMplayerArgs(bool fbdev, bool framedrop, bool center, bool rotate)
+{
+    QString res = QString(fbdev ? "-vo fbdev ":"") +
+            QString(framedrop ? "-framedrop ":"") +
+            QString(center ? "-geometry 50%:40% ":"") +
+            QString(rotate ? "-vf rotate=2 ":"");
+    return res.trimmed();
 }
 
 void MelodiqMainWindow::cancelClicked()
@@ -365,12 +399,12 @@ void MelodiqMainWindow::pFinished(int exitCode, QProcess::ExitStatus exitStatus)
             case StageSendingCaptcha:
                 if (outbuf.indexOf("<table border=\"0\" class=\"restable\">") >= 0)
                 {
-                    percent = extractVal("<SPAN class=\"percent\">", "</SPAN>");
-                    title = extractVal("<strong> Title: </strong></td><td>", "</td>");
-                    art = extractVal("target=\"_blank\"> <img src=\"", "\"");
-                    artist = extractVal("<strong> Artist: </strong></td><td>", "</td>");
-                    album = extractVal("<strong> Album:  </strong></td><td>", "</td>");
-                    year = extractVal("<strong> Year:   </strong></td><td>", "</td>");
+                    percent = extractVal("<SPAN class=\"percent\">", "</SPAN>").trimmed();
+                    title = extractVal("<strong> Title: </strong></td><td>", "</td>").trimmed();
+                    art = extractVal("target=\"_blank\"> <img src=\"", "\"").trimmed();
+                    artist = extractVal("<strong> Artist: </strong></td><td>", "</td>").trimmed();
+                    album = extractVal("<strong> Album:  </strong></td><td>", "</td>").trimmed();
+                    year = extractVal("<strong> Year:   </strong></td><td>", "</td>").trimmed();
 
                     setStage(StageResultOk);
                     QString res =
@@ -392,6 +426,7 @@ void MelodiqMainWindow::pFinished(int exitCode, QProcess::ExitStatus exitStatus)
                                   art.isEmpty() ? "" : "<img src=\"" + art + "\" />",
                                   artist, album, year);
                     info->setHtml(res);
+                    writeTag();
                 }
                 else
                 {
@@ -446,4 +481,25 @@ QString MelodiqMainWindow::extractVal(QString str1, QString str2)
         }
     }
     return "";
+}
+
+void MelodiqMainWindow::writeTag()
+{
+    QString curtime = QDateTime::currentDateTime().toString("dd MMM yyyy hh:mm:ss");
+    QString tag =
+        "%1" "\n"
+        "Title:  %2" "\n"
+        "Artist: %3" "\n"
+        "Album:  %4" "\n"
+        "Year:   %5" "\n"
+        "\n";
+    tag = tag.arg(curtime, title, artist, album, year);
+
+    QFile f(TAGS_FILE);
+    if (f.open(QIODevice::Append))
+    {
+        QTextStream outs(&f);
+        outs << tag;
+        f.close();
+    }
 }
